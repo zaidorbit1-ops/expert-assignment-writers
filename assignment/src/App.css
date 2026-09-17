@@ -1,0 +1,18 @@
+/* Global App Styles */
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove default margins */
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* Selection color */
+::selection {
+  background-color: #cfa049;
+  color: #ffffff;
+}
