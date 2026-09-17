@@ -13,7 +13,7 @@ const Footer = () => {
           <div className="lg:col-span-1 space-y-6">
             <div>
               <div className="mb-3">
-                <img alt="Logo" className="w-18 h-16" src="/logo.png" />
+                <img alt="Logo" className="w-18 h-16" src="/logo.png?v=2" />
               </div>
               <p className="text-body-sm text-primary-700 leading-relaxed">
                 Professional assignment writing services for UK students. Trusted by thousands since 2012.

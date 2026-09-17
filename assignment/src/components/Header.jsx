@@ -46,7 +46,7 @@ const Header = () => {
               {/* Logo */}
               <div className="flex items-center gap-4">
                 <Link to="/" className="flex items-center">
-                  <img src="/logo.png" alt="Expert Assignments" className="h-16 md:h-12 object-contain" />
+                  <img src="/logo.png?v=2" alt="Expert Assignments" className="h-16 md:h-12 object-contain" />
                 </Link>
               </div>
 
@@ -127,7 +127,7 @@ const Header = () => {
           <div className="sticky top-0 bg-white border-b border-slate-200">
             <div className="flex items-center justify-between px-4 py-4">
               <Link to="/" onClick={() => setMobileOpen(false)}>
-                <img src="/logo.png" alt="Expert Assignments" className="h-12 object-contain" />
+                <img src="/logo.png?v=2" alt="Expert Assignments" className="h-12 object-contain" />
               </Link>
               <button onClick={() => setMobileOpen(false)} className="p-2 hover:bg-slate-100 rounded-lg transition">
                 <X size={24} className="text-slate-700" />
