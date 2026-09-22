@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { User, Mail, Book, Calendar, FileText, MessageSquare } from 'lucide-react';
 
 const SubjectForm = ({ defaultSubject = 'Business Management' }) => {
@@ -19,31 +19,35 @@ const SubjectForm = ({ defaultSubject = 'Business Management' }) => {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null);
 
-  const API_BASE = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:4000' : '');
-  const API_ENDPOINT = `${API_BASE}/api/forms/send`;
+  useEffect(() => {
+    const handleCrmResult = (event) => {
+      const detail = event.detail || {};
+      if (detail.formId && detail.formId !== 'subject-form') return;
 
-  const handleSubmit = async (e) => {
+      if (detail.success) {
+        setStatus({
+          ok: true,
+          message: detail.message || 'Your request has been sent successfully. Our team will review it and contact you shortly.',
+        });
+        setForm({ name: '', email: '', subject: defaultSubject, deadline: '', wordCount: '', message: '' });
+      } else {
+        setStatus({
+          ok: false,
+          message: detail.message || 'Something went wrong. Please try again.',
+        });
+      }
+
+      setLoading(false);
+    };
+
+    window.addEventListener('crm-form-result', handleCrmResult);
+    return () => window.removeEventListener('crm-form-result', handleCrmResult);
+  }, [defaultSubject]);
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     setLoading(true);
     setStatus(null);
-    try {
-      const res = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'subject_form', ...form }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setStatus({ ok: true, message: data.message || 'Request received.' });
-        setForm({ name: '', email: '', subject: defaultSubject, deadline: '', wordCount: '', message: '' });
-      } else {
-        setStatus({ ok: false, message: data.message || 'Unable to send request.' });
-      }
-    } catch (err) {
-      setStatus({ ok: false, message: 'Network error. Please try again.' });
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -55,7 +59,7 @@ const SubjectForm = ({ defaultSubject = 'Business Management' }) => {
           Submit your brief and we’ll match you with a UK expert for a tailored management assignment.
         </p>
       </div>
-      <form onSubmit={handleSubmit} className="space-y-5 p-8">
+      <form id="subject-form" onSubmit={handleSubmit} className="space-y-5 p-8">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-2 text-body-sm text-primary-700">
             Full Name

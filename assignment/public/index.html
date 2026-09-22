@@ -38,6 +38,151 @@
     s0.parentNode.insertBefore(s1,s0);
     })();
     </script>
-    <!-- End of Tawk.to Script -->
+
+<!-- End of Tawk.to Script -->
+     
+<!-- CRM Website Tracking Script -->
+<script>
+  (function () {
+    const config = {
+      websiteId: "site_0a8ed78de447be6b52efcf4a",
+      secret: "crm_66454f6ed6347b3110209b91f3e06675da56525a2ecd5b07c63a4599a2b6864a",
+      endpoint: "https://office.digifyitsolution.com/api/crm/integrations/leads",
+      customFields: [
+        { name: "subject", aliases: ["subject", "subject_area", "topic"] },
+        { name: "level", aliases: ["level", "academic_level", "study_level"] },
+        { name: "deadline", aliases: ["deadline", "due_date", "submission_date"] },
+        { name: "requirements", aliases: ["requirements", "message", "notes", "brief", "details"] }
+      ]
+    };
+
+    function cleanValue(value) {
+      return typeof value === "string" ? value.trim() : "";
+    }
+
+    function normalizeName(value) {
+      return cleanValue(value)
+        .replace(/([a-z])([A-Z])/g, "$1_$2")
+        .replace(/\s+/g, "_")
+        .replace(/-+/g, "_")
+        .replace(/[^a-zA-Z0-9_]/g, "")
+        .toLowerCase();
+    }
+
+    function dispatchFormResult(form, success, message, name) {
+      const formId = form && (form.id || form.getAttribute("id") || form.getAttribute("name") || "website_form");
+      window.dispatchEvent(new CustomEvent("crm-form-result", {
+        detail: {
+          formId,
+          success,
+          message,
+          name: name || ""
+        }
+      }));
+    }
+
+    function getInputValue(form, names) {
+      const searchNames = Array.from(new Set(names.filter(Boolean).map((name) => normalizeName(name))));
+      if (!searchNames.length) return "";
+
+      const matchers = [
+        (name) => form.querySelector('[name="' + name + '"]'),
+        (name) => form.querySelector('[id="' + name + '"]'),
+        (name) => form.querySelector('[data-field="' + name + '"]')
+      ];
+
+      for (const name of searchNames) {
+        for (const matcher of matchers) {
+          const element = matcher(name);
+          if (element && element.value && cleanValue(element.value)) {
+            return cleanValue(element.value);
+          }
+        }
+      }
+
+      const preferred = Array.from(form.querySelectorAll("input, textarea, select"));
+      for (const field of preferred) {
+        const fieldName = normalizeName(field.name || field.id || field.getAttribute("data-field") || "");
+        const fieldLabel = normalizeName(field.getAttribute("placeholder") || field.getAttribute("aria-label") || "");
+        const labelValue = cleanValue(field.value || "");
+        if (labelValue && (searchNames.includes(fieldName) || searchNames.includes(fieldLabel))) {
+          return labelValue;
+        }
+      }
+
+      return "";
+    }
+
+    function collectCustomFields(form) {
+      const output = {};
+      for (const field of config.customFields) {
+        const aliases = Array.from(new Set([field.name, ...(field.aliases || [])].map((value) => normalizeName(value)).filter(Boolean)));
+        const value = getInputValue(form, aliases);
+        if (value) {
+          output[field.name] = value;
+        }
+      }
+      return output;
+    }
+
+    function collectData(form) {
+      const firstName = getInputValue(form, ["first_name"]);
+      const lastName = getInputValue(form, ["last_name"]);
+      const fullName = getInputValue(form, ["full_name", "fullName", "name"]) || [firstName, lastName].filter(Boolean).join(" ");
+      const customFields = collectCustomFields(form);
+
+      return {
+        name: fullName,
+        email: getInputValue(form, ["email"]),
+        phone: getInputValue(form, ["phone", "mobile", "phone_number"]),
+        message: getInputValue(form, ["message", "notes", "inquiry", "details", "requirements"]),
+        source_url: window.location.href,
+        form_name: form.getAttribute("id") || form.getAttribute("name") || "website_form",
+        custom_fields: Object.keys(customFields).length ? customFields : undefined
+      };
+    }
+
+    document.addEventListener("submit", function (event) {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement)) return;
+
+      const payload = collectData(form);
+      if (!payload.name || !payload.email) {
+        dispatchFormResult(form, false, "Please complete the required fields before sending.");
+        return;
+      }
+
+      fetch(config.endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-crm-integration-id": config.websiteId,
+          "x-crm-integration-secret": config.secret
+        },
+        body: JSON.stringify(payload)
+      })
+        .then(async (response) => {
+          const data = await response.json().catch(() => ({}));
+          const success = response.ok && data.success !== false;
+          const name = payload.name || "there";
+
+          dispatchFormResult(
+            form,
+            success,
+            data.message || (success
+              ? (form && form.id === "contact-form"
+                  ? `Hey ${name}, we have received your query. Our team will contact you shortly.`
+                  : `Hey ${name}, we have received your order. Our team will get back to you shortly.`)
+              : "Something went wrong while submitting your request. Please try again."),
+            name
+          );
+        })
+        .catch(function () {
+          dispatchFormResult(form, false, "Network error. Please try again.", payload.name);
+        });
+    });
+  })();
+</script>
+
   </body>
 </html>

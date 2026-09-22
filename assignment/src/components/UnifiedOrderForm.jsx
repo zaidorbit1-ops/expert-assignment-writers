@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { User, Mail, Phone, BookOpen, Layers, CalendarDays, MessageSquare, Lock, FileCheck, Users, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import StyledSelect from './StyledSelect';
@@ -72,22 +72,17 @@ const UnifiedOrderForm = ({ defaultSubject = '', variant = 'inline' }) => {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null);
 
-  const API_BASE = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:4000' : '');
-  const API_ENDPOINT = `${API_BASE}/api/forms/send`;
+  useEffect(() => {
+    const handleCrmResult = (event) => {
+      const detail = event.detail || {};
+      if (detail.formId && detail.formId !== 'order-form') return;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setStatus(null);
-    try {
-      const res = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'order_form', ...form }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setStatus({ ok: true, message: data.message || 'Order received.' });
+      if (detail.success) {
+        const name = detail.name || form.fullName || 'there';
+        setStatus({
+          ok: true,
+          message: detail.message || `Hey ${name}, we have received your order. Our team will get back to you shortly.`,
+        });
         setForm({
           fullName: '',
           email: '',
@@ -98,13 +93,71 @@ const UnifiedOrderForm = ({ defaultSubject = '', variant = 'inline' }) => {
           requirements: '',
         });
       } else {
-        setStatus({ ok: false, message: data.message || 'Unable to submit order.' });
+        setStatus({
+          ok: false,
+          message: detail.message || 'Something went wrong. Please try again.',
+        });
       }
-    } catch (err) {
-      setStatus({ ok: false, message: 'Network error. Please try again.' });
-    } finally {
+
       setLoading(false);
+    };
+
+    window.addEventListener('crm-form-result', handleCrmResult);
+    return () => window.removeEventListener('crm-form-result', handleCrmResult);
+  }, [defaultSubject, form.fullName]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setStatus(null);
+  };
+
+  const renderOrderState = () => {
+    if (loading) {
+      return (
+        <div className="rounded-[1.5rem] border border-primary-100 bg-slate-50 p-8 text-center shadow-soft">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary-200 border-t-primary-900" aria-label="Loading" />
+          <p className="text-lg font-bold text-primary-900">Sending your request...</p>
+          <p className="mt-2 text-sm text-primary-600">Please wait while we prepare your quote.</p>
+        </div>
+      );
     }
+
+    if (status?.ok) {
+      return (
+        <div className="rounded-[1.5rem] border border-green-200 bg-green-50 p-8 text-center shadow-soft">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-500/15 text-2xl text-green-700">✓</div>
+          <h3 className="font-display text-2xl text-primary-900">Thank you</h3>
+          <p className="mt-3 text-base text-primary-700">{status.message}</p>
+        </div>
+      );
+    }
+
+    if (status && !status.ok) {
+      return (
+        <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-8 text-center shadow-soft">
+          <h3 className="font-display text-2xl text-primary-900">Something went wrong</h3>
+          <p className="mt-3 text-base text-red-700">{status.message}</p>
+          <button type="button" onClick={() => setStatus(null)} className="mt-5 rounded-full bg-primary-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-800">Try again</button>
+        </div>
+      );
+    }
+
+    return (
+      <form id="order-form" onSubmit={handleSubmit} className="space-y-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <PopupField icon={User} label="Name"><input name="fullName" value={form.fullName} onChange={handleChange} required placeholder="Your full name" className="popup-input" /></PopupField>
+          <PopupField icon={Mail} label="Email address"><input name="email" value={form.email} onChange={handleChange} required placeholder="you@example.com" type="email" className="popup-input" /></PopupField>
+          <PopupField icon={Phone} label="Phone number"><input name="phone" value={form.phone} onChange={handleChange} required placeholder="+44 7700 900000" type="tel" className="popup-input" /></PopupField>
+          <PopupField icon={BookOpen} label="Subject area"><input name="subject" value={form.subject} onChange={handleChange} required placeholder="e.g. Business Management" className="popup-input" /></PopupField>
+          <PopupField icon={Layers} label="Academic level"><StyledSelect name="level" value={form.level} onChange={handleChange} options={academicLevelOptions} placeholder="Choose your level" /></PopupField>
+          <PopupField icon={CalendarDays} label="Deadline"><CalendarPicker value={form.deadline} onChange={(deadline) => setForm((current) => ({ ...current, deadline }))} /></PopupField>
+        </div>
+        <PopupField icon={MessageSquare} label="Requirements"><textarea name="requirements" value={form.requirements} onChange={handleChange} placeholder="Tell us about your topic, word count, referencing style or anything else we should know..." className="popup-input min-h-[92px] resize-y" /></PopupField>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-primary-100 py-3 text-xs text-primary-700"><span className="flex items-center gap-1.5"><Lock size={14} className="text-secondary-800" /> Confidential</span><span className="flex items-center gap-1.5"><FileCheck size={14} className="text-secondary-800" /> Original work</span><span className="flex items-center gap-1.5"><Users size={14} className="text-secondary-800" /> UK experts</span></div>
+        <button disabled={loading} type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-800 px-5 py-3.5 font-bold text-white shadow-lg transition hover:bg-primary-900 disabled:cursor-wait disabled:opacity-60">{loading ? 'Sending...' : 'Get my free quote'} <span aria-hidden="true">-&gt;</span></button>
+      </form>
+    );
   };
 
   // Popup variant (modal style)
@@ -118,20 +171,7 @@ const UnifiedOrderForm = ({ defaultSubject = '', variant = 'inline' }) => {
           <div className="mt-10 space-y-4 text-xs text-primary-100"><div className="flex gap-2"><Check size={15} className="mt-0.5 text-secondary-600" /> UK academic experts</div><div className="flex gap-2"><Check size={15} className="mt-0.5 text-secondary-600" /> Confidential consultation</div><div className="flex gap-2"><Check size={15} className="mt-0.5 text-secondary-600" /> Fast, clear response</div></div>
         </aside>
         <div className="p-5 sm:p-7">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <PopupField icon={User} label="Name"><input name="fullName" value={form.fullName} onChange={handleChange} required placeholder="Your full name" className="popup-input" /></PopupField>
-              <PopupField icon={Mail} label="Email address"><input name="email" value={form.email} onChange={handleChange} required placeholder="you@example.com" type="email" className="popup-input" /></PopupField>
-              <PopupField icon={Phone} label="Phone number"><input name="phone" value={form.phone} onChange={handleChange} required placeholder="+44 7700 900000" type="tel" className="popup-input" /></PopupField>
-              <PopupField icon={BookOpen} label="Subject area"><input name="subject" value={form.subject} onChange={handleChange} required placeholder="e.g. Business Management" className="popup-input" /></PopupField>
-              <PopupField icon={Layers} label="Academic level"><StyledSelect name="level" value={form.level} onChange={handleChange} options={academicLevelOptions} placeholder="Choose your level" /></PopupField>
-              <PopupField icon={CalendarDays} label="Deadline"><CalendarPicker value={form.deadline} onChange={(deadline) => setForm((current) => ({ ...current, deadline }))} /></PopupField>
-            </div>
-            <PopupField icon={MessageSquare} label="Requirements"><textarea name="requirements" value={form.requirements} onChange={handleChange} placeholder="Tell us about your topic, word count, referencing style or anything else we should know..." className="popup-input min-h-[92px] resize-y" /></PopupField>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-primary-100 py-3 text-xs text-primary-700"><span className="flex items-center gap-1.5"><Lock size={14} className="text-secondary-800" /> Confidential</span><span className="flex items-center gap-1.5"><FileCheck size={14} className="text-secondary-800" /> Original work</span><span className="flex items-center gap-1.5"><Users size={14} className="text-secondary-800" /> UK experts</span></div>
-            {status && <div className={`rounded-xl px-4 py-3 text-sm ${status.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{status.message}</div>}
-            <button disabled={loading} type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-800 px-5 py-3.5 font-bold text-white shadow-lg transition hover:bg-primary-900 disabled:cursor-wait disabled:opacity-60">{loading ? 'Sending...' : 'Get my free quote'} <span aria-hidden="true">-&gt;</span></button>
-          </form>
+          {renderOrderState()}
         </div>
       </div>
     );
@@ -151,22 +191,27 @@ const UnifiedOrderForm = ({ defaultSubject = '', variant = 'inline' }) => {
         <div className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs text-primary-100 sm:flex"><Lock size={14} className="text-secondary-400" /> 100% confidential</div>
       </div>
 
-      <motion.form onSubmit={handleSubmit} initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06, delayChildren: 0.15 } } }} className="relative z-10 mt-6 rounded-[1.5rem] border border-white/60 bg-white/95 p-5 shadow-xl backdrop-blur sm:p-6">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={User} label="Name"><input name="fullName" value={form.fullName} onChange={handleChange} required placeholder="Your full name" className="popup-input" /></PopupField></motion.div>
-          <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={Mail} label="Email address"><input name="email" value={form.email} onChange={handleChange} required placeholder="you@example.com" type="email" className="popup-input" /></PopupField></motion.div>
-          <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={Phone} label="Phone number"><input name="phone" value={form.phone} onChange={handleChange} required placeholder="+44 7700 900000" type="tel" className="popup-input" /></PopupField></motion.div>
-          <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={BookOpen} label="Subject area"><input name="subject" value={form.subject} onChange={handleChange} required placeholder="e.g. Business Management" className="popup-input" /></PopupField></motion.div>
-          <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={Layers} label="Academic level"><StyledSelect name="level" value={form.level} onChange={handleChange} options={academicLevelOptions} placeholder="Choose your level" /></PopupField></motion.div>
-          <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={CalendarDays} label="Deadline"><CalendarPicker value={form.deadline} onChange={(deadline) => setForm((current) => ({ ...current, deadline }))} /></PopupField></motion.div>
+      {loading || status ? (
+        <div className="relative z-10 mt-6 rounded-[1.5rem] border border-white/60 bg-white/95 p-5 shadow-xl backdrop-blur sm:p-6">
+          {renderOrderState()}
         </div>
-        <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }} className="mt-4"><PopupField icon={MessageSquare} label="Requirements"><textarea name="requirements" value={form.requirements} onChange={handleChange} placeholder="Tell us about your topic, word count, referencing style or anything else we should know..." className="popup-input min-h-[86px] resize-y" /></PopupField></motion.div>
-        <div className="mt-5 flex flex-col gap-4 border-t border-primary-100 pt-4 sm:flex-row sm:items-center">
-          <div className="flex flex-1 flex-wrap gap-x-4 gap-y-2 text-xs text-primary-700"><span className="flex items-center gap-1.5"><FileCheck size={14} className="text-secondary-800" /> Original work</span><span className="flex items-center gap-1.5"><Users size={14} className="text-secondary-800" /> UK experts</span></div>
-          {status && <div className={`rounded-lg px-3 py-2 text-xs ${status.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{status.message}</div>}
-          <button disabled={loading} type="submit" className="flex items-center justify-center gap-2 rounded-xl bg-secondary-700 px-6 py-3.5 font-bold text-primary-950 shadow-lg transition hover:bg-secondary-600 disabled:cursor-wait disabled:opacity-60">{loading ? 'Sending...' : 'Get my free quote'} <span aria-hidden="true">-&gt;</span></button>
-        </div>
-      </motion.form>
+      ) : (
+        <motion.form id="order-form" onSubmit={handleSubmit} initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06, delayChildren: 0.15 } } }} className="relative z-10 mt-6 rounded-[1.5rem] border border-white/60 bg-white/95 p-5 shadow-xl backdrop-blur sm:p-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={User} label="Name"><input name="fullName" value={form.fullName} onChange={handleChange} required placeholder="Your full name" className="popup-input" /></PopupField></motion.div>
+            <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={Mail} label="Email address"><input name="email" value={form.email} onChange={handleChange} required placeholder="you@example.com" type="email" className="popup-input" /></PopupField></motion.div>
+            <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={Phone} label="Phone number"><input name="phone" value={form.phone} onChange={handleChange} required placeholder="+44 7700 900000" type="tel" className="popup-input" /></PopupField></motion.div>
+            <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={BookOpen} label="Subject area"><input name="subject" value={form.subject} onChange={handleChange} required placeholder="e.g. Business Management" className="popup-input" /></PopupField></motion.div>
+            <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={Layers} label="Academic level"><StyledSelect name="level" value={form.level} onChange={handleChange} options={academicLevelOptions} placeholder="Choose your level" /></PopupField></motion.div>
+            <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }}><PopupField icon={CalendarDays} label="Deadline"><CalendarPicker value={form.deadline} onChange={(deadline) => setForm((current) => ({ ...current, deadline }))} /></PopupField></motion.div>
+          </div>
+          <motion.div variants={{ hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }} className="mt-4"><PopupField icon={MessageSquare} label="Requirements"><textarea name="requirements" value={form.requirements} onChange={handleChange} placeholder="Tell us about your topic, word count, referencing style or anything else we should know..." className="popup-input min-h-[86px] resize-y" /></PopupField></motion.div>
+          <div className="mt-5 flex flex-col gap-4 border-t border-primary-100 pt-4 sm:flex-row sm:items-center">
+            <div className="flex flex-1 flex-wrap gap-x-4 gap-y-2 text-xs text-primary-700"><span className="flex items-center gap-1.5"><FileCheck size={14} className="text-secondary-800" /> Original work</span><span className="flex items-center gap-1.5"><Users size={14} className="text-secondary-800" /> UK experts</span></div>
+            <button disabled={loading} type="submit" className="flex items-center justify-center gap-2 rounded-xl bg-secondary-700 px-6 py-3.5 font-bold text-primary-950 shadow-lg transition hover:bg-secondary-600 disabled:cursor-wait disabled:opacity-60">{loading ? 'Sending...' : 'Get my free quote'} <span aria-hidden="true">-&gt;</span></button>
+          </div>
+        </motion.form>
+      )}
     </motion.div>
   );
 };

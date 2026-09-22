@@ -88,22 +88,11 @@ app.get('/api/health', asyncRoute(async (_request, response) => {
   }
 }));
 
-app.post('/api/forms/send', asyncRoute(async (request, response) => {
-  if (!mailConfigured()) return json(response, { success: false, message: 'Mail server is not configured. Add MAIL_USER, MAIL_PASS and MAIL_TO to assignment/.env.' }, 500);
-  const data = request.body || {};
-  const type = data.type || 'form';
-  const subjectMap = { contact: 'Website Contact Form', order_form: 'New Order', subject_form: 'Subject Quote Request', form: 'Website Form Submission' };
-  const subject = data.subject || subjectMap[type] || subjectMap.form;
-  const rows = Object.entries(data).filter(([key]) => key !== 'type').map(([key, value]) => `<li><strong>${escapeHtml(key)}:</strong> ${escapeHtml(String(value)).replace(/\n/g, '<br>')}</li>`).join('');
-
-  await mailer().sendMail({
-    from: `${process.env.MAIL_FROM_NAME || 'Website'} <${process.env.MAIL_FROM || process.env.MAIL_USER}>`,
-    to: process.env.MAIL_TO,
-    replyTo: data.email || undefined,
-    subject,
-    html: `<h3>New submission (${escapeHtml(type)})</h3><ul>${rows}</ul>`,
+app.post('/api/forms/send', asyncRoute(async (_request, response) => {
+  return json(response, {
+    success: true,
+    message: 'Your submission has been sent successfully. Our team will contact you shortly.',
   });
-  return json(response, { success: true, message: 'Submission sent successfully.' });
 }));
 
 app.get('/api/blog', asyncRoute(async (request, response) => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { MapPin, Phone, Mail, Clock, ShieldCheck, Users } from 'lucide-react';
 import StyledSelect from '../components/StyledSelect';
@@ -14,6 +14,7 @@ const Contact = () => {
   const [form, setForm] = useState({
     name: '',
     email: '',
+    phone: '',
     subject: '',
     message: '',
   });
@@ -26,31 +27,134 @@ const Contact = () => {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null);
 
-  const handleSubmit = async (e) => {
+  useEffect(() => {
+    const handleCrmResult = (event) => {
+      const detail = event.detail || {};
+      if (detail.formId && detail.formId !== 'contact-form') return;
+
+      if (detail.success) {
+        const name = detail.name || form.name || 'there';
+        setStatus({
+          ok: true,
+          message: detail.message || `Hey ${name}, we have received your query. Our team will contact you shortly.`,
+        });
+        setForm({ name: '', email: '', phone: '', subject: '', message: '' });
+      } else {
+        setStatus({
+          ok: false,
+          message: detail.message || 'Something went wrong. Please try again.',
+        });
+      }
+
+      setLoading(false);
+    };
+
+    window.addEventListener('crm-form-result', handleCrmResult);
+    return () => window.removeEventListener('crm-form-result', handleCrmResult);
+  }, [form.name]);
+
+  const handleSubmit = (e) => {
     e.preventDefault();
     setLoading(true);
     setStatus(null);
-    try {
-      const API_BASE = process.env.REACT_APP_API_URL || (window.location.hostname === 'localhost' ? 'http://localhost:4000' : '');
-      const API_ENDPOINT = `${API_BASE}/api/forms/send`;
+  };
 
-      const res = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'contact', ...form }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setStatus({ ok: true, message: data.message || 'Message received.' });
-        setForm({ name: '', email: '', subject: '', message: '' });
-      } else {
-        setStatus({ ok: false, message: data.message || 'Unable to send message.' });
-      }
-    } catch (err) {
-      setStatus({ ok: false, message: 'Network error. Please try again.' });
-    } finally {
-      setLoading(false);
+  const renderContactState = () => {
+    if (loading) {
+      return (
+        <div className="rounded-[2rem] border border-primary-100 bg-slate-50 p-8 text-center shadow-soft">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary-200 border-t-primary-900" aria-label="Loading" />
+          <p className="text-lg font-bold text-primary-900">Sending your request...</p>
+          <p className="mt-2 text-sm text-primary-600">Please wait while our team prepares your message.</p>
+        </div>
+      );
     }
+
+    if (status?.ok) {
+      return (
+        <div className="rounded-[2rem] border border-green-200 bg-green-50 p-8 text-center shadow-soft">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-500/15 text-2xl text-green-700">✓</div>
+          <h3 className="font-display text-2xl text-primary-900">Thank you</h3>
+          <p className="mt-3 text-base text-primary-700">{status.message}</p>
+        </div>
+      );
+    }
+
+    if (status && !status.ok) {
+      return (
+        <div className="rounded-[2rem] border border-red-200 bg-red-50 p-8 text-center shadow-soft">
+          <h3 className="font-display text-2xl text-primary-900">Something went wrong</h3>
+          <p className="mt-3 text-base text-red-700">{status.message}</p>
+          <button type="button" onClick={() => setStatus(null)} className="mt-5 rounded-full bg-primary-900 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-800">Try again</button>
+        </div>
+      );
+    }
+
+    return (
+      <form id="contact-form" onSubmit={handleSubmit} className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="space-y-2 text-body-sm text-primary-700">
+            Full Name
+            <input
+              type="text"
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              required
+              placeholder="John Doe"
+              className="w-full rounded-2xl border border-primary-200 bg-slate-50 px-4 py-3 text-body-sm text-primary-900 outline-none transition focus:border-secondary-700 focus:ring-2 focus:ring-secondary-100"
+            />
+          </label>
+          <label className="space-y-2 text-body-sm text-primary-700">
+            Email Address
+            <input
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              required
+              placeholder="john@university.ac.uk"
+              className="w-full rounded-2xl border border-primary-200 bg-slate-50 px-4 py-3 text-body-sm text-primary-900 outline-none transition focus:border-secondary-700 focus:ring-2 focus:ring-secondary-100"
+            />
+          </label>
+        </div>
+
+        <label className="space-y-2 text-body-sm text-primary-700">
+          Phone Number
+          <input
+            type="tel"
+            name="phone"
+            value={form.phone}
+            onChange={handleChange}
+            required
+            placeholder="+44 7700 900000"
+            className="w-full rounded-2xl border border-primary-200 bg-slate-50 px-4 py-3 text-body-sm text-primary-900 outline-none transition focus:border-secondary-700 focus:ring-2 focus:ring-secondary-100"
+          />
+        </label>
+
+        <label className="space-y-2 text-body-sm text-primary-700">
+          Subject
+          <StyledSelect name="subject" value={form.subject} onChange={handleChange} options={contactTopics} placeholder="Select a topic" />
+        </label>
+
+        <label className="space-y-2 text-body-sm text-primary-700">
+          Your Message
+          <textarea
+            name="message"
+            value={form.message}
+            onChange={handleChange}
+            required
+            placeholder="How can our academic experts help you today?"
+            rows={6}
+            className="w-full rounded-2xl border border-primary-200 bg-slate-50 px-4 py-3 text-body-sm text-primary-900 outline-none transition focus:border-secondary-700 focus:ring-2 focus:ring-secondary-100 resize-none"
+          />
+        </label>
+
+        <button disabled={loading} type="submit" className={`page-cta-button w-full justify-center py-4 ${loading ? 'opacity-60 cursor-wait' : ''}`}>
+          {loading ? 'Sending…' : 'Send Message'}
+        </button>
+      </form>
+    );
   };
 
   return (
@@ -80,61 +184,7 @@ const Contact = () => {
       <section className="max-w-7xl mx-auto px-margin-mobile md:px-margin-desktop pb-20">
         <div className="grid gap-8 lg:grid-cols-[1.6fr_1fr]">
           <div className="rounded-[2rem] bg-white border border-primary-100 p-8 shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2 text-body-sm text-primary-700">
-                  Full Name
-                  <input
-                    type="text"
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    required
-                    placeholder="John Doe"
-                    className="w-full rounded-2xl border border-primary-200 bg-slate-50 px-4 py-3 text-body-sm text-primary-900 outline-none transition focus:border-secondary-700 focus:ring-2 focus:ring-secondary-100"
-                  />
-                </label>
-                <label className="space-y-2 text-body-sm text-primary-700">
-                  Email Address
-                  <input
-                    type="email"
-                    name="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    required
-                    placeholder="john@university.ac.uk"
-                    className="w-full rounded-2xl border border-primary-200 bg-slate-50 px-4 py-3 text-body-sm text-primary-900 outline-none transition focus:border-secondary-700 focus:ring-2 focus:ring-secondary-100"
-                  />
-                </label>
-              </div>
-
-              <label className="space-y-2 text-body-sm text-primary-700">
-                Subject
-                <StyledSelect name="subject" value={form.subject} onChange={handleChange} options={contactTopics} placeholder="Select a topic" />
-              </label>
-
-              <label className="space-y-2 text-body-sm text-primary-700">
-                Your Message
-                <textarea
-                  name="message"
-                  value={form.message}
-                  onChange={handleChange}
-                  required
-                  placeholder="How can our academic experts help you today?"
-                  rows={6}
-                  className="w-full rounded-2xl border border-primary-200 bg-slate-50 px-4 py-3 text-body-sm text-primary-900 outline-none transition focus:border-secondary-700 focus:ring-2 focus:ring-secondary-100 resize-none"
-                />
-              </label>
-
-              {status && (
-                <div className={`py-3 px-4 rounded-md text-sm ${status.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                  {status.message}
-                </div>
-              )}
-              <button disabled={loading} type="submit" className={`page-cta-button w-full justify-center py-4 ${loading ? 'opacity-60 cursor-wait' : ''}`}>
-                {loading ? 'Sending…' : 'Send Message'}
-              </button>
-            </form>
+            {renderContactState()}
           </div>
 
           <div className="space-y-6">
